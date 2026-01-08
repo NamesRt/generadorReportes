@@ -1,0 +1,184 @@
+import csv
+import re
+import os
+from datetime import datetime
+from collections import defaultdict
+from testChain import load_hierarchy_data, get_superior, normalize_text
+
+"""
+SamAccountName: Seleccionar solo cuentas X
+Enabled: True
+Description: Extraer codigo del responsable
+Agrupar por mes de expiracion de contraseñas
+
+Usuario de red: 25
+Nombre: 1
+A.pat: 2
+A.mat: 3
+E-mail: 34
+Division: 11
+Fam. Puesto: 7
+"""
+
+# Variables globales para la jerarquía
+hierarchy_mapping = None
+
+def buscarCampoCodigo(Regs_File, codigo):
+    """Busca un código en el archivo de registros y retorna sus datos."""
+    with open(Regs_File, mode='r', newline='', encoding="utf-8", errors='replace') as file:
+        reader = csv.reader(file, delimiter=';')
+        # Saltar encabezado si existe
+        next(reader, None)
+        
+        for row in reader:
+            if len(row) > 25 and row[25] == codigo:
+                # Retornar: Nombre, A.pat, A.mat, E-mail, Division, Fam. Puesto
+                return [row[i] if i < len(row) else "" for i in (1, 2, 3, 34, 11, 7)]
+    return ["N/A", "N/A", "N/A", "N/A", "N/A", "N/A"]
+
+def buscarGerentePorPuestoYDivision(Regs_File, puesto_norm, division_norm):
+    """Busca un gerente en el archivo de registros por puesto y división normalizados."""
+    with open(Regs_File, mode='r', newline='', encoding="utf-8", errors='replace') as file:
+        reader = csv.reader(file, delimiter=';')
+        header = next(reader, None)
+        
+        for row in reader:
+            if len(row) > 25:
+                # Normalizar puesto y división de la fila actual
+                puesto_actual = normalize_text(row[7]) if len(row) > 7 else ""
+                division_actual = normalize_text(row[11]) if len(row) > 11 else ""
+                
+                # Si hay coincidencia exacta de puesto
+                if puesto_norm and puesto_actual == puesto_norm:
+                    # Si también se especifica división, verificar coincidencia
+                    if division_norm is None or division_actual == division_norm:
+                        # Retornar: Codigo, Nombre, A.pat, A.mat, E-mail
+                        codigo = row[25] if len(row) > 25 else "N/A"
+                        return [codigo, row[1] if len(row) > 1 else "N/A", 
+                               row[2] if len(row) > 2 else "N/A",
+                               row[3] if len(row) > 3 else "N/A",
+                               row[34] if len(row) > 34 else "N/A"]
+    
+    return ["N/A", "N/A", "N/A", "N/A", "N/A"]
+
+def load_csv(AD_File, Regs_File, mes):
+    global hierarchy_mapping
+    
+    # Cargar jerarquía desde el mismo archivo Regs usando índices 7 y 11
+    if hierarchy_mapping is None:
+        try:
+            hierarchy_mapping, _, _, _ = load_hierarchy_data(Regs_File, fam_puesto_col=7, division_col=11)
+            print(f"Jerarquía cargada desde {Regs_File}")
+        except Exception as e:
+            print(f"No se pudo cargar la jerarquía: {e}")
+            hierarchy_mapping = {}
+    
+    datos_por_mes = defaultdict(list)
+    
+    meses = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+    }
+    
+    with open(AD_File, mode='r', newline='', encoding="utf-8", errors='replace') as file:
+        reader = csv.reader(file, delimiter=';')
+        for row in reader:
+            # Filtrar cuentas X habilitadas
+            if (row[0].startswith("X") and any(c.isdigit() for c in row[0])) and row[14] == "True":
+                # Extraer codigo del responsable de la descripcion
+                desc = row[7]
+                if "Resp" in desc:
+                    parts = re.split(r'[ |,.\-:]+', desc)
+                    codigo = row[7]
+                    for part in parts:
+                        if (part.startswith("S") or part.startswith("B") or part.startswith("b") or part.startswith("s")) and any(c.isdigit() for c in part):
+                            codigo = part
+                            break
+                # Obtener fecha de expiracion de la cuenta y agrupar por mes
+                account_expires = row[22]
+                mes_key = "Sin_fecha"
+                if account_expires and account_expires != "":
+                    try:
+                        fecha = datetime.strptime(account_expires.split()[0], "%d/%m/%Y")
+                        mes_nombre = meses[fecha.month]
+                        mes_key = f"{mes_nombre}{fecha.year}"
+                    except:
+                        mes_key = "Sin_fecha"
+                
+                data = buscarCampoCodigo(Regs_File, codigo)
+                
+                # Buscar al gerente del responsable
+                gerente_codigo = "N/A"
+                gerente_nombre = "N/A"
+                gerente_correo = "N/A"
+                
+                if data[5] != "N/A" and data[5] != "":  # Si hay puesto del responsable
+                    puesto_responsable = data[5]
+                    division_responsable = data[4]
+                    
+                    # Obtener el superior usando la jerarquía
+                    puesto_superior_norm, division_superior = get_superior(puesto_responsable, division_responsable)
+                    
+                    if puesto_superior_norm:
+                        # Buscar al gerente en el archivo de registros
+                        gerente_data = buscarGerentePorPuestoYDivision(Regs_File, puesto_superior_norm, division_superior)
+                        if gerente_data[0] != "N/A":
+                            gerente_codigo = gerente_data[0]
+                            gerente_nombre = gerente_data[1] + " " + gerente_data[2] + " " + gerente_data[3]
+                            gerente_correo = gerente_data[4]
+
+                # Almacenar registro
+                datos_por_mes[mes_key].append({
+                    "SamAccountName": row[0],
+                    "DisplayName": row[4],
+                    "Responsable": codigo,
+                    "NombreResponsable": data[1] + " " + data[2] + " " + data[3],
+                    "CorreoResponsable": data[4],
+                    "Division": data[4],
+                    "Gerente": gerente_codigo,
+                    "NombreGerente": gerente_nombre,
+                    "CorreoGerente": gerente_correo,
+                    "Enabled": row[14],
+                    "whenCreated": row[18],
+                    "AccountExpires": row[22]
+                })
+                
+                print("SamAccountName: {} - DisplayName: {} - Responsable: {} - NombreResponsable: {} - CorreoResponsable: {} - Division: {} - Enabled: {} - whenCreated: {} - AccountExpires: {}".format(
+                    row[0], row[4], codigo, data[1] + " " + data[2] + " " + data[3], data[4], data[5], row[14], row[18], row[22]
+                ))
+
+    output_dir = "reportes" + (mes if mes else "")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    # Filtrar solo los datos del mes especificado
+    archivos_generados = 0
+    for mes_key, datos in datos_por_mes.items():
+        # Si se especifica un mes, solo generar archivos que comiencen con ese mes
+        if mes and not mes_key.startswith(mes):
+            continue
+            
+        nombre_archivo = os.path.join(output_dir, f"{mes_key}.csv")
+        with open(nombre_archivo, mode='w', newline='', encoding="utf-8") as csv_file:
+            fieldnames = ["SamAccountName", "DisplayName", "Responsable", "NombreResponsable", "CorreoResponsable", "Gerente", "NombreGerente", "CorreoGerente", "Division", "Enabled", "whenCreated", "AccountExpires"]
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            
+            writer.writeheader()
+            writer.writerows(datos)
+        
+        print(f"\nArchivo creado: {nombre_archivo} con {len(datos)} registros")
+        archivos_generados += 1
+    
+    # Verificar si se generaron archivos para el mes especificado
+    if mes and archivos_generados == 0:
+        mensaje = f"\nNo se encontraron registros para el mes de {mes}"
+        print(mensaje)
+        raise ValueError(f"No se encontraron registros para el mes de {mes}")
+
+if __name__ == "__main__":
+    AD_File = "AD-06-01-26.csv"
+    Regs_File = "awa1.csv"
+    mes = "Enero"
+
+    load_csv(AD_File, Regs_File, mes)
