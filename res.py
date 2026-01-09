@@ -54,7 +54,7 @@ def buscarGerentePorPuestoYDivision(Regs_File, puesto_norm, division_norm):
                     if division_norm is None or division_actual == division_norm:
                         # Retornar: Codigo, Nombre, A.pat, A.mat, E-mail
                         codigo = row[25] if len(row) > 25 else "N/A"
-                        return [codigo, row[1] if len(row) > 1 else "N/A", 
+                        return [codigo, row[1] if len(row) > 1 else "N/A",  
                                row[2] if len(row) > 2 else "N/A",
                                row[3] if len(row) > 3 else "N/A",
                                row[34] if len(row) > 34 else "N/A"]
@@ -84,10 +84,16 @@ def load_csv(AD_File, Regs_File, mes, anio=None):
     with open(AD_File, mode='r', newline='', encoding="utf-8", errors='replace') as file:
         reader = csv.reader(file, delimiter=';')
         for row in reader:
+            usCod = row[0]
+            dispName = row[4]
+            enabled = row[14]
+            expiration = row[22]
+            creation = row[18]
+            
             # Filtrar cuentas X habilitadas
-            if (row[0].startswith("X") and any(c.isdigit() for c in row[0])) and row[14] == "True":
+            if (usCod.startswith("X") and any(c.isdigit() for c in usCod)) and enabled == "True":
                 # Obtener fecha de expiracion de la cuenta primero para filtrar
-                account_expires = row[22]
+                account_expires = expiration
                 mes_key = "Sin_fecha"
                 fecha = None
                 
@@ -114,22 +120,28 @@ def load_csv(AD_File, Regs_File, mes, anio=None):
                 desc = row[7]
                 if "Resp" in desc:
                     parts = re.split(r'[ |,.\-:]+', desc)
-                    codigo = row[7]
+                    respCod = row[7]
                     for part in parts:
                         if (part.startswith("S") or part.startswith("B") or part.startswith("b") or part.startswith("s")) and any(c.isdigit() for c in part):
-                            codigo = part
+                            respCod = part
                             break
                 
-                data = buscarCampoCodigo(Regs_File, codigo)
+                data = buscarCampoCodigo(Regs_File, respCod)
+                nombre = data[0]
+                aPat = data[1]
+                aMat = data[2]
+                correo = data[3]
+                division = data[4]
+                puesto = data[5]
                 
                 # Buscar al gerente del responsable
                 gerente_codigo = "N/A"
                 gerente_nombre = "N/A"
                 gerente_correo = "N/A"
                 
-                if data[5] != "N/A" and data[5] != "":  # Si hay puesto del responsable
-                    puesto_responsable = data[5]
-                    division_responsable = data[4]
+                if puesto != "N/A" and puesto != "":  # Si hay puesto del responsable
+                    puesto_responsable = puesto
+                    division_responsable = division
                     
                     # Obtener el superior usando la jerarquía
                     puesto_superior_norm, division_superior = get_superior(puesto_responsable, division_responsable)
@@ -144,22 +156,22 @@ def load_csv(AD_File, Regs_File, mes, anio=None):
 
                 # Almacenar registro
                 datos_por_mes[mes_key].append({
-                    "SamAccountName": row[0],
-                    "DisplayName": row[4],
-                    "Responsable": codigo,
-                    "NombreResponsable": data[1] + " " + data[2] + " " + data[3],
-                    "CorreoResponsable": data[4],
-                    "Division": data[4],
+                    "SamAccountName": usCod,
+                    "DisplayName": dispName,
+                    "Responsable": respCod,
+                    "NombreResponsable": nombre + " " + aPat + " " + aMat,
+                    "CorreoResponsable": correo,
+                    "Division": division,
                     "Gerente": gerente_codigo,
                     "NombreGerente": gerente_nombre,
                     "CorreoGerente": gerente_correo,
-                    "Enabled": row[14],
-                    "whenCreated": row[18],
-                    "AccountExpires": row[22]
+                    "Enabled": enabled,
+                    "whenCreated": creation,
+                    "AccountExpires": expiration
                 })
                 
                 print("SamAccountName: {} - DisplayName: {} - Responsable: {} - NombreResponsable: {} - CorreoResponsable: {} - Division: {} - Enabled: {} - whenCreated: {} - AccountExpires: {}".format(
-                    row[0], row[4], codigo, data[1] + " " + data[2] + " " + data[3], data[4], data[5], row[14], row[18], row[22]
+                    usCod, dispName, respCod, nombre + " " + aPat + " " + aMat, correo, division, enabled, creation, expiration
                 ))
 
     output_dir = "reportes" + (mes if mes else "") + (str(anio) if anio else "")
@@ -172,7 +184,7 @@ def load_csv(AD_File, Regs_File, mes, anio=None):
         nombre_archivo = os.path.join(output_dir, f"{mes_key}.csv")
         with open(nombre_archivo, mode='w', newline='', encoding="utf-8") as csv_file:
             fieldnames = ["SamAccountName", "DisplayName", "Responsable", "NombreResponsable", "CorreoResponsable", "Gerente", "NombreGerente", "CorreoGerente", "Division", "Enabled", "whenCreated", "AccountExpires"]
-            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames, delimiter=';')
             
             writer.writeheader()
             writer.writerows(datos)
