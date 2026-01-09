@@ -7,13 +7,14 @@ class ReportGeneratorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Generador de Reportes de Cuentas")
-        self.root.geometry("600x400")
+        self.root.geometry("600x500")
         self.root.resizable(False, False)
         
         # Variables
         self.ad_file = tk.StringVar()
         self.regs_file = tk.StringVar()
         self.selected_month = tk.StringVar(value="Enero")
+        self.selected_year = tk.StringVar(value="2026")
         
         # Configurar interfaz
         self.create_widgets()
@@ -66,6 +67,26 @@ class ReportGeneratorApp:
         )
         month_combo.pack(side="left", padx=5)
         
+        # Frame para año
+        year_frame = tk.Frame(self.root, pady=10)
+        year_frame.pack(fill="x", padx=20)
+        
+        tk.Label(year_frame, text="Año:", width=15, anchor="w").pack(side="left")
+        
+        # Generar lista de años (últimos 10 años hasta el actual)
+        import datetime
+        current_year = datetime.datetime.now().year
+        years = [str(year) for year in range(current_year, current_year - 11, -1)]
+        
+        year_combo = ttk.Combobox(
+            year_frame, 
+            textvariable=self.selected_year, 
+            values=years,
+            state="readonly",
+            width=20
+        )
+        year_combo.pack(side="left", padx=5)
+        
         # Frame para botones
         button_frame = tk.Frame(self.root, pady=30)
         button_frame.pack()
@@ -86,7 +107,7 @@ class ReportGeneratorApp:
         self.status_frame = tk.Frame(self.root, pady=10)
         self.status_frame.pack(fill="both", expand=True, padx=20)
         
-        tk.Label(self.status_frame, text="Estado:", font=("Arial", 10, "bold")).pack(anchor="w")
+        tk.Label(self.status_frame, text="Estado:", font=("Arial", 10, "bold"), height=1).pack(anchor="w")
         
         self.status_text = tk.Text(self.status_frame, height=6, width=70, state="disabled")
         self.status_text.pack(fill="both", expand=True)
@@ -157,17 +178,21 @@ class ReportGeneratorApp:
         else:
             self.log_status(f"Mes: {mes_seleccionado}")
         
+        # Determinar año
+        año_seleccionado = self.selected_year.get()
+        self.log_status(f"Año: {año_seleccionado}")
+        
         self.log_status("-" * 50)
         
         try:
             # Llamar a la función de procesamiento
-            load_csv(self.ad_file.get(), self.regs_file.get(), mes_seleccionado)
+            outputDir = load_csv(self.ad_file.get(), self.regs_file.get(), mes_seleccionado, año_seleccionado)
             
             self.log_status("-" * 50)
-            self.log_status("Reportes generados exitosamente en la carpeta 'reportes'")
+            self.log_status(f"Reportes generados exitosamente en la carpeta '{outputDir}'")
             messagebox.showinfo(
                 "Éxito", 
-                "Los reportes se han generado correctamente en la carpeta 'reportes'"
+                f"Los reportes se han generado correctamente en la carpeta '{outputDir}'"
             )
         except Exception as e:
             self.log_status(f"✗ Error: {str(e)}")
