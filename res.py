@@ -17,7 +17,7 @@ A.pat: 2
 A.mat: 3
 E-mail: 34
 Division: 11
-Fam. Puesto: 7
+Fam. Puesto: 10
 """
 
 # Variables globales para la jerarquía
@@ -33,11 +33,10 @@ def buscarCampoCodigo(Regs_File, codigo):
         for row in reader:
             if len(row) > 25 and row[25] == codigo:
                 # Retornar: Nombre, A.pat, A.mat, E-mail, Division, Fam. Puesto
-                return [row[i] if i < len(row) else "" for i in (1, 2, 3, 34, 11, 7)]
+                return [row[i] if i < len(row) else "" for i in (1, 2, 3, 34, 11, 10)]
     return ["N/A", "N/A", "N/A", "N/A", "N/A", "N/A"]
 
-def buscarGerentePorPuestoYDivision(Regs_File, puesto_norm, division_norm):
-    """Busca un gerente en el archivo de registros por puesto y división normalizados."""
+def buscarPorPuestoYDivision(Regs_File, puesto_norm, division_norm):
     with open(Regs_File, mode='r', newline='', encoding="utf-8", errors='replace') as file:
         reader = csv.reader(file, delimiter=';')
         header = next(reader, None)
@@ -45,8 +44,9 @@ def buscarGerentePorPuestoYDivision(Regs_File, puesto_norm, division_norm):
         for row in reader:
             if len(row) > 25:
                 # Normalizar puesto y división de la fila actual
-                puesto_actual = normalize_text(row[7]) if len(row) > 7 else ""
+                puesto_actual = normalize_text(row[10]) if len(row) > 10 else ""
                 division_actual = normalize_text(row[11]) if len(row) > 11 else ""
+                # print(f"Comparando usuario '{row[0] if len(row) > 0 else 'N/A'}' con puesto: '{puesto_actual}' y division: '{division_actual}'")
                 
                 # Si hay coincidencia exacta de puesto
                 if puesto_norm and puesto_actual == puesto_norm:
@@ -64,11 +64,11 @@ def buscarGerentePorPuestoYDivision(Regs_File, puesto_norm, division_norm):
 def load_csv(AD_File, Regs_File, mes, anio=None):
     global hierarchy_mapping
     
-    # Cargar jerarquía desde el mismo archivo Regs usando índices 7 y 11
+    # Cargar jerarquía desde el mismo archivo Regs usando índices 10 y 11
     if hierarchy_mapping is None:
         try:
-            hierarchy_mapping, _, _, _ = load_hierarchy_data(Regs_File, fam_puesto_col=7, division_col=11)
-            print(f"Jerarquía cargada desde {Regs_File}")
+            hierarchy_mapping, _, _, _ = load_hierarchy_data(Regs_File, fam_puesto_col=10, division_col=11)
+            print(f"Jerarquia cargada desde {Regs_File}")
         except Exception as e:
             print(f"No se pudo cargar la jerarquía: {e}")
             hierarchy_mapping = {}
@@ -133,6 +133,9 @@ def load_csv(AD_File, Regs_File, mes, anio=None):
                 correo = data[3]
                 division = data[4]
                 puesto = data[5]
+                # if(nombre != "N/A"):
+                    # print("Responsable encontrado: {} - {} {} {}".format(respCod, nombre, aPat, aMat))
+                    # print("Correo: {}, Division: {}, Puesto: {}".format(correo, division, puesto))
                 
                 # Buscar al gerente del responsable
                 gerente_codigo = "N/A"
@@ -148,11 +151,16 @@ def load_csv(AD_File, Regs_File, mes, anio=None):
                     
                     if puesto_superior_norm:
                         # Buscar al gerente en el archivo de registros
-                        gerente_data = buscarGerentePorPuestoYDivision(Regs_File, puesto_superior_norm, division_superior)
+                        # print(f"Buscando gerente con puesto: '{puesto_superior_norm}' en division: '{division_superior}'")
+                        gerente_data = buscarPorPuestoYDivision(Regs_File, puesto_superior_norm, division_superior)
+                        # print(f"Resultado busqueda gerente: {gerente_data}")
                         if gerente_data[0] != "N/A":
                             gerente_codigo = gerente_data[0]
                             gerente_nombre = gerente_data[1] + " " + gerente_data[2] + " " + gerente_data[3]
                             gerente_correo = gerente_data[4]
+                            # print(f"GERENTE ENCONTRADO: {gerente_codigo} - {gerente_nombre} - {gerente_correo}")
+                        else:
+                            print("No se encontro persona con ese puesto superior en el archivo")
 
                 # Almacenar registro
                 datos_por_mes[mes_key].append({
@@ -170,9 +178,9 @@ def load_csv(AD_File, Regs_File, mes, anio=None):
                     "AccountExpires": expiration
                 })
                 
-                print("SamAccountName: {} - DisplayName: {} - Responsable: {} - NombreResponsable: {} - CorreoResponsable: {} - Division: {} - Enabled: {} - whenCreated: {} - AccountExpires: {}".format(
-                    usCod, dispName, respCod, nombre + " " + aPat + " " + aMat, correo, division, enabled, creation, expiration
-                ))
+                # print("SamAccountName: {} - DisplayName: {} - Responsable: {} - NombreResponsable: {} - CorreoResponsable: {} - Division: {} - Enabled: {} - whenCreated: {} - AccountExpires: {}".format(
+                #     usCod, dispName, respCod, nombre + " " + aPat + " " + aMat, correo, division, enabled, creation, expiration
+                # ))
 
     output_dir = "reportes" + (mes if mes else "") + (str(anio) if anio else "")
     if not os.path.exists(output_dir):

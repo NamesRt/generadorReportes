@@ -137,7 +137,7 @@ print("PRUEBA DE FUNCIONES DE MAIN.PY")
 print("=" * 80)
 
 try:
-    from res import buscarCampoCodigo, buscarGerentePorPuestoYDivision
+    from res import buscarCampoCodigo, buscarPorPuestoYDivision
     
     # Simular búsqueda de responsable
     print("\n1. Probando buscarCampoCodigo...")
@@ -158,7 +158,7 @@ try:
         div_sup = normalize_text(resultados[0]["superior_division"]) if resultados[0]["superior_division"] else None
         print(f"   Buscando puesto: {puesto_sup}")
         print(f"   En division: {div_sup}")
-        gerente = buscarGerentePorPuestoYDivision("regs_test.csv", puesto_sup, div_sup)
+        gerente = buscarPorPuestoYDivision("regs_test.csv", puesto_sup, div_sup)
         print(f"   Resultado: {gerente}")
         if gerente[0] != "N/A":
             print("   OK - Funcion operativa")
