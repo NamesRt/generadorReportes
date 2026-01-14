@@ -36,7 +36,11 @@ def buscarCampoCodigo(Regs_File, codigo):
                 return [row[i] if i < len(row) else "" for i in (1, 2, 3, 34, 11, 10)]
     return ["N/A", "N/A", "N/A", "N/A", "N/A", "N/A"]
 
-def buscarPorPuestoYDivision(Regs_File, puesto_norm, division_norm):
+def buscarPorPuestoYDivision(Regs_File, puesto_norm, division_original=None):
+    """
+    Busca una persona por puesto (normalizado) y opcionalmente por división.
+    Si division_original es None, busca solo por puesto.
+    """
     with open(Regs_File, mode='r', newline='', encoding="utf-8", errors='replace') as file:
         reader = csv.reader(file, delimiter=';')
         header = next(reader, None)
@@ -45,19 +49,28 @@ def buscarPorPuestoYDivision(Regs_File, puesto_norm, division_norm):
             if len(row) > 25:
                 # Normalizar puesto y división de la fila actual
                 puesto_actual = normalize_text(row[10]) if len(row) > 10 else ""
-                division_actual = normalize_text(row[11]) if len(row) > 11 else ""
-                # print(f"Comparando usuario '{row[0] if len(row) > 0 else 'N/A'}' con puesto: '{puesto_actual}' y division: '{division_actual}'")
+                division_actual = row[11] if len(row) > 11 else ""
+                division_actual_norm = normalize_text(division_actual)
                 
-                # Si hay coincidencia exacta de puesto
+                # Si hay coincidencia exacta de puesto normalizado
                 if puesto_norm and puesto_actual == puesto_norm:
-                    # Si también se especifica división, verificar coincidencia
-                    if division_norm is None or division_actual == division_norm:
-                        # Retornar: Codigo, Nombre, A.pat, A.mat, E-mail
+                    # Si también se especifica división original, verificar coincidencia
+                    if division_original is None:
+                        # Sin filtro de división, devolver primera coincidencia
                         codigo = row[25] if len(row) > 25 else "N/A"
                         return [codigo, row[1] if len(row) > 1 else "N/A",  
                                row[2] if len(row) > 2 else "N/A",
                                row[3] if len(row) > 3 else "N/A",
                                row[34] if len(row) > 34 else "N/A"]
+                    else:
+                        # Verificar si la división coincide (sin normalizar)
+                        division_original_norm = normalize_text(division_original)
+                        if division_actual_norm == division_original_norm:
+                            codigo = row[25] if len(row) > 25 else "N/A"
+                            return [codigo, row[1] if len(row) > 1 else "N/A",  
+                                   row[2] if len(row) > 2 else "N/A",
+                                   row[3] if len(row) > 3 else "N/A",
+                                   row[34] if len(row) > 34 else "N/A"]
     
     return ["N/A", "N/A", "N/A", "N/A", "N/A"]
 
@@ -142,32 +155,31 @@ def load_csv(AD_File, Regs_File, mes, anio=None):
                 gerente_nombre = "N/A"
                 gerente_correo = "N/A"
                 
-                if puesto != "N/A" and puesto != "":  # Si hay puesto del responsable
-                    puesto_responsable = puesto
-                    division_responsable = division
-                    
-                    # Obtener el superior usando la jerarquía
-                    puesto_superior_norm, division_superior = get_superior(puesto_responsable, division_responsable)
+                if puesto != "N/A" and puesto != "" and division != "N/A" and division != "":
+                    # Obtener el superior usando la jerarquía (busca por división)
+                    puesto_superior_norm, division_superior = get_superior(puesto, division)
                     
                     if puesto_superior_norm:
                         # Buscar al gerente en el archivo de registros
-                        # print(f"Buscando gerente con puesto: '{puesto_superior_norm}' en division: '{division_superior}'")
+                        print(f"Buscando gerente con puesto: '{puesto_superior_norm}' en division: '{division_superior}'")
                         gerente_data = buscarPorPuestoYDivision(Regs_File, puesto_superior_norm, division_superior)
-                        # print(f"Resultado busqueda gerente: {gerente_data}")
+                        
                         if gerente_data[0] != "N/A":
                             gerente_codigo = gerente_data[0]
                             gerente_nombre = gerente_data[1] + " " + gerente_data[2] + " " + gerente_data[3]
                             gerente_correo = gerente_data[4]
-                            # print(f"GERENTE ENCONTRADO: {gerente_codigo} - {gerente_nombre} - {gerente_correo}")
+                            print(f"✓ GERENTE ENCONTRADO: {gerente_codigo} - {gerente_nombre}")
                         else:
-                            print("No se encontro persona con ese puesto superior en el archivo")
+                            print(f"✗ No se encontró gerente con puesto '{puesto_superior_norm}' en '{division_superior}'")
+                    else:
+                        print(f"✗ No se encontró puesto superior para división: '{division}'")
 
                 # Almacenar registro
                 datos_por_mes[mes_key].append({
                     "SamAccountName": usCod,
                     "DisplayName": dispName,
                     "Responsable": respCod,
-                    "NombreResponsable": nombre + " " + aPat + " " + aMat,
+                    "NombreResponsable": nombre + " " + aPat + " " + aMat if nombre != "N/A" and aPat != "N/A" and aMat != "N/A" else "Se requiere busqueda manual",
                     "CorreoResponsable": correo,
                     "Division": division,
                     "Gerente": gerente_codigo,

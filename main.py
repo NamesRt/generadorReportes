@@ -128,7 +128,7 @@ class ReportGeneratorApp:
     
     def select_regs_file(self):
         filename = filedialog.askopenfilename(
-            title="Seleccionar archivo de Registros",
+            title="Seleccionar archivo de datos de colaborador",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
         if filename:
