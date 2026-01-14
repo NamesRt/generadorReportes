@@ -31,7 +31,7 @@ def buscarCampoCodigo(Regs_File, codigo):
         next(reader, None)
         
         for row in reader:
-            if len(row) > 25 and row[25] == codigo:
+            if len(row) > 25 and row[25].upper() == codigo.upper():
                 # Retornar: Nombre, A.pat, A.mat, E-mail, Division, Fam. Puesto
                 return [row[i] if i < len(row) else "" for i in (1, 2, 3, 34, 11, 10)]
     return ["N/A", "N/A", "N/A", "N/A", "N/A", "N/A"]
@@ -161,18 +161,18 @@ def load_csv(AD_File, Regs_File, mes, anio=None):
                     
                     if puesto_superior_norm:
                         # Buscar al gerente en el archivo de registros
-                        print(f"Buscando gerente con puesto: '{puesto_superior_norm}' en division: '{division_superior}'")
+                        # print(f"Buscando gerente con puesto: '{puesto_superior_norm}' en division: '{division_superior}'")
                         gerente_data = buscarPorPuestoYDivision(Regs_File, puesto_superior_norm, division_superior)
                         
                         if gerente_data[0] != "N/A":
                             gerente_codigo = gerente_data[0]
                             gerente_nombre = gerente_data[1] + " " + gerente_data[2] + " " + gerente_data[3]
                             gerente_correo = gerente_data[4]
-                            print(f"✓ GERENTE ENCONTRADO: {gerente_codigo} - {gerente_nombre}")
-                        else:
-                            print(f"✗ No se encontró gerente con puesto '{puesto_superior_norm}' en '{division_superior}'")
-                    else:
-                        print(f"✗ No se encontró puesto superior para división: '{division}'")
+                            # print(f"GERENTE ENCONTRADO: {gerente_codigo} - {gerente_nombre}")
+                        # else:
+                            # print(f"No se encontró gerente con puesto '{puesto_superior_norm}' en '{division_superior}'")
+                    # else:
+                        # print(f"No se encontró puesto superior para división: '{division}'")
 
                 # Almacenar registro
                 datos_por_mes[mes_key].append({
